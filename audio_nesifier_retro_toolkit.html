@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Audio NESifier — Retro Toolkit</title>
+  <style>
+    :root{
+      --bg:#0f0f10;
+      --panel:#17181c;
+      --accent:#ffcc00;
+      --accent2:#ff6a00;
+      --text:#eaeaea;
+      --muted:#a0a0a0;
+      --border:#2a2c32;
+      --shadow:0 12px 30px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: "Courier New", Courier, monospace;
+      image-rendering: pixelated;
+    }
+    header{
+      background:linear-gradient(180deg,#1f2026,#15161a);
+      border-bottom:2px solid var(--border);
+      position:sticky;top:0;z-index:10;
+      box-shadow:var(--shadow);
+    }
+    .wrap{max-width:1000px;margin:0 auto;padding:16px;}
+    h1{
+      margin:0;
+      font-size:28px;
+      color:var(--accent);
+      text-shadow:2px 2px 0 #000;
+      letter-spacing:1px;
+    }
+    nav{
+      display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;
+    }
+    .tab{
+      background:var(--panel);
+      border:2px solid var(--border);
+      color:var(--text);
+      padding:8px 12px;
+      cursor:pointer;
+      text-transform:uppercase;
+      font-weight:bold;
+      box-shadow:inset 0 -4px 0 #000;
+    }
+    .tab.active{border-color:var(--accent); color:#111; background:var(--accent);}
+    main{padding:16px;}
+    .card{
+      background:var(--panel);
+      border:2px solid var(--border);
+      padding:16px;
+      box-shadow:var(--shadow);
+    }
+    h2{margin-top:0;color:var(--accent)}
+    .row{display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:12px 0;}
+    label{font-size:12px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;}
+    input[type=range], input[type=number], select{
+      background:#0c0d10; color:var(--text);
+      border:2px solid var(--border); padding:6px; border-radius:0;
+      font-family:inherit;
+      width:160px;
+    }
+    input[type=file]{border:2px dashed var(--border); padding:10px; background:#0c0d10;}
+    button{
+      background:var(--accent2); border:2px solid #000; color:#fff; font-weight:bold;
+      padding:10px 14px; cursor:pointer; text-transform:uppercase; letter-spacing:1px;
+      box-shadow:0 4px 0 #000; transform:translateY(0);
+    }
+    button:hover{filter:brightness(1.1)}
+    button:active{transform:translateY(2px); box-shadow:0 2px 0 #000;}
+    .hint{color:var(--muted); font-size:12px}
+    audio{width:100%; margin-top:10px;}
+    .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px;}
+    footer{
+      border-top:2px solid var(--border);
+      background:#111216;
+      padding:16px;
+      color:var(--muted);
+      text-align:center;
+    }
+    .about-box{max-width:1000px;margin:0 auto; text-align:left;}
+    .kbd{display:inline-block; border:2px solid var(--border); background:#0c0d10; padding:2px 6px; font-weight:bold;}
+    .mini{font-size:11px}
+    .pill{display:inline-block; padding:2px 8px; border:1px solid var(--border); background:#101216; margin-right:6px; color:var(--muted)}
+    .section{display:none}
+    .section.active{display:block}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>Audio NESifier — Retro Toolkit</h1>
+      <nav>
+        <div class="tab active" data-target="bitcrusher">Bitcrusher</div>
+        <div class="tab" data-target="dpcm">DPCM Sim</div>
+        <div class="tab" data-target="pulse">Pulse Synth</div>
+        <div class="tab" data-target="noise">Noise/Drums</div>
+        <div class="tab" data-target="about">About</div>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- BITCRUSHER -->
+    <section id="bitcrusher" class="section active">
+      <div class="card">
+        <h2>NES Bitcrusher</h2>
+        <div class="row">
+          <div>
+            <label for="bc-file">Source Audio</label>
+            <input id="bc-file" type="file" accept="audio/*">
+          </div>
+          <div>
+            <label for="bc-rate">Sample Rate (Hz)</label>
+            <input id="bc-rate" type="number" value="11025" min="2000" max="44100" step="1">
+          </div>
+          <div>
+            <label for="bc-bits">Bit Depth</label>
+            <input id="bc-bits" type="range" min="2" max="8" value="4" oninput="bcBitsVal.textContent=this.value">
+            <div class="mini">Current: <span id="bcBitsVal">4</span>-bit</div>
+          </div>
+          <div>
+            <label for="bc-mode">Downsample Mode</label>
+            <select id="bc-mode">
+              <option value="nearest">Nearest (Sharp)</option>
+              <option value="hold">Sample & Hold</option>
+            </select>
+          </div>
+          <div>
+            <label for="bc-dither">Dither (TPDF)</label>
+            <select id="bc-dither">
+              <option value="off">Off</option>
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>Pre-EQ High-Pass (Hz)</label>
+            <input id="bc-hp" type="range" min="0" max="200" value="30" oninput="bcHpVal.textContent=this.value">
+            <div class="mini">Cutoff: <span id="bcHpVal">30</span> Hz</div>
+          </div>
+          <div>
+            <label>Pre-EQ Low-Pass (Hz)</label>
+            <input id="bc-lp" type="range" min="2000" max="20000" value="8000" oninput="bcLpVal.textContent=this.value">
+            <div class="mini">Cutoff: <span id="bcLpVal">8000</span> Hz</div>
+          </div>
+          <div>
+            <label>Normalize</label>
+            <select id="bc-norm">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div>
+            <label>Soft Clip</label>
+            <select id="bc-clip">
+              <option value="off">Off</option>
+              <option value="on" selected>On</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="bc-run">Convert</button>
+          <a id="bc-dl" style="display:none" download="nes_bitcrushed.wav">
+            <button>Download WAV</button>
+          </a>
+        </div>
+
+        <audio id="bc-audio" controls></audio>
+        <div class="hint">Tip: For NES vibes try <span class="pill">Rate 8000–12000</span> <span class="pill">3–5 bits</span> and low‑pass around <span class="pill">6–9 kHz</span>.</div>
+      </div>
+    </section>
+
+    <!-- DPCM SIM -->
+    <section id="dpcm" class="section">
+      <div class="card">
+        <h2>DPCM Simulator (1‑bit Delta)</h2>
+        <div class="row">
+          <div>
+            <label for="dp-file">Source Audio</label>
+            <input id="dp-file" type="file" accept="audio/*">
+          </div>
+          <div>
+            <label for="dp-rate">Playback Rate (Hz)</label>
+            <input id="dp-rate" type="number" value="11025" min="4000" max="33000">
+          </div>
+          <div>
+            <label for="dp-step">Delta Step (0–1)</label>
+            <input id="dp-step" type="range" min="0.005" max="0.2" value="0.04" step="0.005" oninput="dpStepVal.textContent=this.value">
+            <div class="mini">Current: <span id="dpStepVal">0.04</span></div>
+          </div>
+          <div>
+            <label for="dp-bias">DC Bias</label>
+            <input id="dp-bias" type="range" min="-0.3" max="0.3" value="0" step="0.01" oninput="dpBiasVal.textContent=this.value">
+            <div class="mini">Current: <span id="dpBiasVal">0</span></div>
+          </div>
+        </div>
+        <div class="row">
+          <button id="dp-run">Encode → Decode</button>
+          <a id="dp-dl" style="display:none" download="nes_dpcm_sim.wav">
+            <button>Download WAV</button>
+          </a>
+        </div>
+        <audio id="dp-audio" controls></audio>
+        <div class="hint">This sim encodes your audio as a 1‑bit delta stream (like NES DPCM), then decodes it using a 7‑bitish accumulator. Adjust step size for crunch vs intelligibility.</div>
+      </div>
+    </section>
+
+    <!-- PULSE SYNTH -->
+    <section id="pulse" class="section">
+      <div class="card">
+        <h2>Pulse Synth (Square/Pulse)</h2>
+        <div class="row">
+          <div>
+            <label for="ps-freq">Frequency (Hz)</label>
+            <input id="ps-freq" type="number" value="440" min="50" max="4000">
+          </div>
+          <div>
+            <label for="ps-duty">Duty Cycle</label>
+            <select id="ps-duty">
+              <option value="0.125">12.5%</option>
+              <option value="0.25">25%</option>
+              <option value="0.5" selected>50%</option>
+              <option value="0.75">75%</option>
+            </select>
+          </div>
+          <div>
+            <label for="ps-dur">Duration (s)</label>
+            <input id="ps-dur" type="number" value="2" min="0.1" step="0.1">
+          </div>
+          <div>
+            <label for="ps-vibdepth">Vibrato Depth (cents)</label>
+            <input id="ps-vibdepth" type="number" value="15" min="0" max="200">
+          </div>
+          <div>
+            <label for="ps-vibspeed">Vibrato Speed (Hz)</label>
+            <input id="ps-vibspeed" type="number" value="5" min="0" max="20">
+          </div>
+        </div>
+        <div class="row">
+          <button id="ps-render">Render</button>
+          <a id="ps-dl" style="display:none" download="nes_pulse.wav">
+            <button>Download WAV</button>
+          </a>
+        </div>
+        <audio id="ps-audio" controls></audio>
+        <div class="hint">Classic NES pulse voices use fixed duty cycles (12.5, 25, 50, 75%). A little vibrato adds character.</div>
+      </div>
+    </section>
+
+    <!-- NOISE / DRUMS -->
+    <section id="noise" class="section">
+      <div class="card">
+        <h2>Noise / Drum Maker</h2>
+        <div class="row">
+          <div>
+            <label for="nz-dur">Duration (s)</label>
+            <input id="nz-dur" type="number" value="0.4" step="0.05" min="0.05">
+          </div>
+          <div>
+            <label for="nz-mode">Mode</label>
+            <select id="nz-mode">
+              <option value="white">White Noise</option>
+              <option value="lfsr" selected>NES LFSR-ish</option>
+            </select>
+          </div>
+          <div>
+            <label for="nz-pitch">Pitch-ish (for LFSR)</label>
+            <input id="nz-pitch" type="range" min="1" max="16" value="6" oninput="nzPitchVal.textContent=this.value">
+            <div class="mini">Tap Rate: <span id="nzPitchVal">6</span></div>
+          </div>
+          <div>
+            <label for="nz-env">Decay</label>
+            <input id="nz-env" type="range" min="0.2" max="8" value="3" step="0.1" oninput="nzEnvVal.textContent=this.value">
+            <div class="mini">Power: <span id="nzEnvVal">3</span></div>
+          </div>
+        </div>
+        <div class="row">
+          <button id="nz-render">Render</button>
+          <a id="nz-dl" style="display:none" download="nes_noise.wav">
+            <button>Download WAV</button>
+          </a>
+        </div>
+        <audio id="nz-audio" controls></audio>
+        <div class="hint">The NES noise channel uses LFSR feedback to create periodic/aperiodic noise. Use short durations + higher tap rate for snares & hi-hats.</div>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="about" class="section">
+      <div class="card">
+        <h2>About Audio NESifier</h2>
+        <p>Made for quick, browser‑only NES‑style sound design: bitcrushing, DPCM simulation, pulse synthesis, and noise drums. No uploads — everything stays on your device.</p>
+        <p class="mini">Built by <strong>cudplayzgamez</strong>. If you use GitHub Pages, the URL is public for anyone. Share it with friends!</p>
+        <ul class="mini">
+          <li>Bitcrusher: downsample + quantize with optional TPDF dither, pre‑EQ, normalize, soft‑clip.</li>
+          <li>DPCM Sim: 1‑bit delta encode/decode to approximate NES DPCM grit.</li>
+          <li>Pulse Synth: fixed NES‑style duty cycles with vibrato.</li>
+          <li>Noise/Drums: white or LFSR‑style noise with decay.</li>
+        </ul>
+        <p class="mini">Hotkeys: <span class="kbd">1</span> Bitcrusher • <span class="kbd">2</span> DPCM • <span class="kbd">3</span> Pulse • <span class="kbd">4</span> Noise</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="about-box">
+      <p><strong>Audio NESifier</strong> © 2025. This is a fan‑made tool inspired by the NES APU (2A03/2A07). All trademarks belong to their owners. Send ideas or bugs via your GitHub repo’s issues page.</p>
+    </div>
+  </footer>
+
+  <script>
+    // ---------- Routing / Tabs ----------
+    const tabs = document.querySelectorAll('.tab');
+    const sections = document.querySelectorAll('.section');
+    function showTab(id){
+      tabs.forEach(t=>t.classList.toggle('active', t.dataset.target===id));
+      sections.forEach(s=>s.classList.toggle('active', s.id===id));
+      history.replaceState(null,'','#'+id);
+    }
+    tabs.forEach(t=>t.addEventListener('click',()=>showTab(t.dataset.target)));
+    window.addEventListener('load',()=>{
+      const hash = location.hash.replace('#','');
+      if (hash && document.getElementById(hash)) showTab(hash);
+    });
+    window.addEventListener('keydown',(e)=>{
+      if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
+      if(e.key==='1') showTab('bitcrusher');
+      if(e.key==='2') showTab('dpcm');
+      if(e.key==='3') showTab('pulse');
+      if(e.key==='4') showTab('noise');
+    });
+
+    // ---------- Helpers ----------
+    function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+    function mixToMono(buffer){
+      const chs = [];
+      for(let i=0;i<buffer.numberOfChannels;i++) chs.push(buffer.getChannelData(i));
+      const out = new Float32Array(buffer.length);
+      for(let i=0;i<buffer.length;i++){
+        let s=0; for(let c=0;c<chs.length;c++) s += chs[c][i];
+        out[i] = s/chs.length;
+      }
+      return {samples:out, sampleRate:buffer.sampleRate};
+    }
+    function softClip(x){ // tanh-like soft clipper
+      const a = 2;
+      return Math.tanh(a*x)/Math.tanh(a);
+    }
+    function normalize(arr){
+      let m=0; for(let i=0;i<arr.length;i++) m = Math.max(m, Math.abs(arr[i]));
+      if(m<1e-9) return arr;
+      const g = 0.98/m;
+      for(let i=0;i<arr.length;i++) arr[i]*=g;
+      return arr;
+    }
+    function tpdfDither(level){ // level in 0..1 scale relative to quant step
+      // returns function that adds triangular PDF noise scaled by 'level'
+      return function(step){
+        const scale = level * step;
+        return (Math.random()-Math.random()) * scale;
+      }
+    }
+    function floatTo16BitWavMono(float32Array, sampleRate){
+      const numChannels = 1, bps=16, bytesPerSample=2;
+      const dataLen = float32Array.length * bytesPerSample;
+      const buffer = new ArrayBuffer(44 + dataLen);
+      const view = new DataView(buffer);
+      writeStr('RIFF',0); view.setUint32(4,36+dataLen,true);
+      writeStr('WAVE',8); writeStr('fmt ',12);
+      view.setUint32(16,16,true); view.setUint16(20,1,true);
+      view.setUint16(22,numChannels,true); view.setUint32(24,sampleRate,true);
+      view.setUint32(28,sampleRate*numChannels*bytesPerSample,true);
+      view.setUint16(32,numChannels*bytesPerSample,true); view.setUint16(34,bps,true);
+      writeStr('data',36); view.setUint32(40,dataLen,true);
+      let o=44;
+      for(let i=0;i<float32Array.length;i++){
+        let s = clamp(float32Array[i],-1,1);
+        view.setInt16(o, s<0 ? s*0x8000 : s*0x7FFF, true);
+        o+=2;
+      }
+      return buffer;
+      function writeStr(str,off){ for(let i=0;i<str.length;i++) view.setUint8(off+i,str.charCodeAt(i)); }
+    }
+
+    async function decodeFile(file){
+      const arrayBuffer = await file.arrayBuffer();
+      const ac = new (window.AudioContext||window.webkitAudioContext)();
+      return new Promise((res,rej)=>ac.decodeAudioData(arrayBuffer,res,rej));
+    }
+
+    async function preEQ(buffer, hpHz, lpHz){
+      // Use OfflineAudioContext graph for filters
+      const ctx = new OfflineAudioContext(1, buffer.duration*buffer.sampleRate, buffer.sampleRate);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      let node = src;
+      if(hpHz>0){
+        const hp = ctx.createBiquadFilter();
+        hp.type='highpass'; hp.frequency.value = hpHz;
+        node.connect(hp); node = hp;
+      }
+      if(lpHz<20000){
+        const lp = ctx.createBiquadFilter();
+        lp.type='lowpass'; lp.frequency.value = lpHz;
+        node.connect(lp); node = lp;
+      }
+      node.connect(ctx.destination);
+      src.start();
+      return ctx.startRendering();
+    }
+
+    // ---------- Bitcrusher ----------
+    const bcRun = document.getElementById('bc-run');
+    bcRun.addEventListener('click', async ()=>{
+      const file = document.getElementById('bc-file').files[0];
+      if(!file) return alert('Pick an audio file first');
+      const rate = parseInt(document.getElementById('bc-rate').value,10);
+      const bits = parseInt(document.getElementById('bc-bits').value,10);
+      const mode = document.getElementById('bc-mode').value;
+      const ditherSel = document.getElementById('bc-dither').value;
+      const hp = parseInt(document.getElementById('bc-hp').value,10);
+      const lp = parseInt(document.getElementById('bc-lp').value,10);
+      const normalizeOn = document.getElementById('bc-norm').value==='on';
+      const clipOn = document.getElementById('bc-clip').value==='on';
+
+      try{
+        let buf = await decodeFile(file);
+        buf = await preEQ(buf, hp, lp);
+        const mono = mixToMono(buf);
+        const src = mono.samples;
+        const srcRate = mono.sampleRate;
+        const ratio = srcRate / rate;
+        const outLen = Math.floor(src.length / ratio);
+        const out = new Float32Array(outLen);
+
+        const levels = Math.pow(2,bits);
+        const step = 2/(levels-1);
+        const dLevel = ditherSel==='off'?0 : ditherSel==='low'?0.1 : ditherSel==='med'?0.25 : 0.5;
+        const ditherFn = tpdfDither(dLevel);
+
+        let pos=0;
+        let held=0;
+        for(let i=0;i<outLen;i++){
+          const idx = mode==='nearest' ? Math.floor(pos) : Math.floor(i*ratio);
+          let s = src[idx] ?? 0;
+          if(mode==='hold'){
+            if(i===0 || Math.floor((i-1)*ratio)!==Math.floor(i*ratio)) held = s;
+            s = held;
+          }
+          const qIn = s + ditherFn(step);
+          const q = Math.round((qIn+1)/step)*step - 1;
+          out[i] = clipOn ? softClip(q) : q;
+          pos += ratio;
+        }
+        if(normalizeOn) normalize(out);
+
+        const wav = floatTo16BitWavMono(out, rate);
+        const blob = new Blob([wav],{type:'audio/wav'});
+        const url = URL.createObjectURL(blob);
+        document.getElementById('bc-audio').src = url;
+        const link = document.getElementById('bc-dl');
+        link.href = url; link.style.display='inline-block';
+      }catch(e){ console.error(e); alert('Failed: '+e); }
+    });
+
+    // ---------- DPCM Simulator ----------
+    document.getElementById('dp-run').addEventListener('click', async ()=>{
+      const file = document.getElementById('dp-file').files[0];
+      if(!file) return alert('Pick an audio file first');
+      const rate = parseInt(document.getElementById('dp-rate').value,10);
+      const step = parseFloat(document.getElementById('dp-step').value);
+      const bias = parseFloat(document.getElementById('dp-bias').value);
+
+      try{
+        let buf = await decodeFile(file);
+        const mono = mixToMono(buf);
+        const src = mono.samples;
+        const srcRate = mono.sampleRate;
+
+        // First, downsample to target "DPCM" rate (nearest)
+        const ratio = srcRate / rate;
+        const N = Math.floor(src.length / ratio);
+        const ds = new Float32Array(N);
+        for(let i=0;i<N;i++) ds[i] = src[Math.floor(i*ratio)];
+
+        // Encode to 1-bit delta stream, then decode via accumulator (7-bit-ish clamp)
+        let acc = 0;
+        const maxA = 0.98;
+        const out = new Float32Array(N);
+        for(let i=0;i<N;i++){
+          const target = clamp(ds[i]+bias, -1, 1);
+          const bit = (target >= acc) ? 1 : -1;
+          acc = clamp(acc + bit*step, -maxA, maxA);
+          out[i] = acc;
+        }
+        normalize(out);
+
+        const wav = floatTo16BitWavMono(out, rate);
+        const blob = new Blob([wav],{type:'audio/wav'});
+        const url = URL.createObjectURL(blob);
+        document.getElementById('dp-audio').src = url;
+        const link = document.getElementById('dp-dl');
+        link.href = url; link.style.display='inline-block';
+      }catch(e){ console.error(e); alert('Failed: '+e); }
+    });
+
+    // ---------- Pulse Synth ----------
+    document.getElementById('ps-render').addEventListener('click', ()=>{
+      const f0 = parseFloat(document.getElementById('ps-freq').value);
+      const duty = parseFloat(document.getElementById('ps-duty').value);
+      const dur = parseFloat(document.getElementById('ps-dur').value);
+      const vibDepthCents = parseFloat(document.getElementById('ps-vibdepth').value);
+      const vibHz = parseFloat(document.getElementById('ps-vibspeed').value);
+
+      const rate = 44100;
+      const N = Math.floor(dur*rate);
+      const out = new Float32Array(N);
+      const vibDepth = Math.pow(2, vibDepthCents/1200) - 1;
+
+      let phase = 0;
+      for(let n=0;n<N;n++){
+        const t = n/rate;
+        const f = f0 * (1 + vibDepth * Math.sin(2*Math.PI*vibHz*t));
+        const inc = f/rate;
+        phase += inc; if(phase>=1) phase -= 1;
+        const s = (phase < duty) ? 1 : -1;
+        // simple click-softener
+        out[n] = 0.6 * s;
+      }
+      const wav = floatTo16BitWavMono(out, rate);
+      const blob = new Blob([wav],{type:'audio/wav'});
+      const url = URL.createObjectURL(blob);
+      document.getElementById('ps-audio').src = url;
+      const link = document.getElementById('ps-dl');
+      link.href = url; link.style.display='inline-block';
+    });
+
+    // ---------- Noise / Drums ----------
+    document.getElementById('nz-render').addEventListener('click', ()=>{
+      const dur = parseFloat(document.getElementById('nz-dur').value);
+      const mode = document.getElementById('nz-mode').value;
+      const tapRate = parseInt(document.getElementById('nz-pitch').value,10);
+      const envPow = parseFloat(document.getElementById('nz-env').value);
+
+      const rate = 44100;
+      const N = Math.floor(dur*rate);
+      const out = new Float32Array(N);
+
+      if(mode==='white'){
+        for(let i=0;i<N;i++) out[i] = (Math.random()*2-1);
+      }else{
+        // Simple 15-bit LFSR-ish noise; tap rate controls how often feedback is applied
+        let reg = 0x7FFF;
+        let tap = tapRate;
+        for(let i=0;i<N;i++){
+          if(i%tap===0){
+            const bit = ((reg>>0) ^ (reg>>1)) & 1;
+            reg = (reg>>1) | (bit<<14);
+          }
+          out[i] = ((reg & 1) ? 1 : -1) * 0.8;
+        }
+      }
+      // exponential-ish decay
+      for(let i=0;i<N;i++){
+        const t = i/N;
+        const env = Math.pow(1-t, envPow);
+        out[i] *= env;
+      }
+      const wav = floatTo16BitWavMono(out, 44100);
+      const blob = new Blob([wav],{type:'audio/wav'});
+      const url = URL.createObjectURL(blob);
+      document.getElementById('nz-audio').src = url;
+      const link = document.getElementById('nz-dl');
+      link.href = url; link.style.display='inline-block';
+    });
+  </script>
+</body>
+</html>
